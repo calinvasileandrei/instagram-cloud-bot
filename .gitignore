@@ -1,0 +1,8 @@
+bot/debug.log
+bot/following.json
+testing/db.json
+venv
+.env
+db.json
+debug.log
+following.json
