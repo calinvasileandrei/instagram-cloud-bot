@@ -1,7 +1,7 @@
 from flask import Flask,request, jsonify
 from bot.bot import InstagramCloudBot
 import os
-from bot.status import Status
+from bot.status import Status,Operation
 from bot.localdb.db_manager import DBmanager
 from dotenv import load_dotenv
 load_dotenv()
@@ -20,10 +20,29 @@ def work():
     if(bot is None):
         username = os.getenv("username")
         password = os.getenv("password")
-        bot = InstagramCloudBot(username,password)
+        bot = InstagramCloudBot(username,password,Operation.work)
         bot.start()
         status = bot.status()
         return jsonify({"status": 200, "bot_status": str(status), "message": "Bot created and started!"})
+    else:
+        status = bot.status()
+        if(status == Status.offline or status == Status.paused):
+            bot.__work()
+            return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is working again!"})
+        else:
+            return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is already working!"})
+
+
+@app.route('/unfollow',methods=['GET'])
+def unfollow():
+    global bot
+    if(bot is None):
+        username = os.getenv("username")
+        password = os.getenv("password")
+        bot = InstagramCloudBot(username,password,Operation.unfollow)
+        bot.start()
+        status = bot.status()
+        return jsonify({"status": 200, "bot_status": str(status), "message": "Bot created and started with unfollow operation!"})
     else:
         status = bot.status()
         if(status == Status.offline or status == Status.paused):
@@ -55,6 +74,8 @@ def status():
         return jsonify({"status": 200, "bot_status": str(status), "message": "Bot status retrieved!"})
     else:
         return jsonify({"status": 200, "bot_status": "offline", "message": "Bot is offline!"})
+
+
 
 
 @app.route('/followingusers',methods=['GET'])

@@ -9,21 +9,26 @@ from bot.localdb.db_manager import DBmanager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.FileHandler(
     "debug.log"), logging.StreamHandler()])
-from bot.status import Status
+from bot.status import Status,Operation
 
 class InstagramCloudBot(Thread):
 
     __api=None
     __status=Status.offline
     __dbmanager=None
+    __operation = None
 
-    def __init__(self, _username, _password):
+    def __init__(self, _username, _password,_operation):
         super().__init__()
         self.__api = Client(_username, _password)
         self.__dbmanager = DBmanager()
+        self.__operation = _operation
 
     def run(self):
-        self.__work()
+        if(self.__operation == Operation.work):
+            self.__work()
+        elif (self.__operation == Operation.unfollow):
+            self.__removeNotFollowingBack()
 
     def getBotFollowedUsers(self):
         return self.__dbmanager.getAllUsers()
@@ -75,6 +80,36 @@ class InstagramCloudBot(Thread):
 
     def __updateStatus(self,newStatus):
         self.__status = newStatus
+
+    def __userFollowsBack(self,userid):
+        response = self.__api.friendships_show(userid)
+        followedBack = response["followed_by"]
+        return followedBack
+
+    def __removeFollow(self,userid):
+        self.__api.friendships_destroy(userid)
+
+    #TODO: Need to be tested!
+    def __removeNotFollowingBack(self):
+        if(not self.__api == None):
+            self.__updateStatus(Status.working)
+            users = self.__dbmanager.getAllUsers()
+            logging.info("Removing users not following back!")
+            for user in users:
+                logging.info("Checking user: " + user["username"])
+                if (("removed" in user and user["removed"] == False) or ("removed" not in user)):
+                    # check if user follows you
+                    if (self.__userFollowsBack(user["id"]) == False):
+                        time.sleep(5)
+                        self.__removeFollow(user["id"])
+                        self.__dbmanager.updateRemovedFlag(user["id"],True)
+                        logging.info("User: " + user["username"] + " removed")
+                    else:
+                        logging.info("User: " + user["username"] + " is following you back!")
+                # wait random time
+                randomTime = randint(20, 40)
+                time.sleep(randomTime)
+            self.__updateStatus(Status.paused)
 
     def __work(self):
         if(not self.__api == None):
@@ -129,5 +164,8 @@ class InstagramCloudBot(Thread):
                         status) + ", wait for next follower : " + str(waitForNextFollow) + " sec")
                     time.sleep(waitForNextFollow)
 
-                logging.info("Cycle done! start waiting next cycle!")
-                time.sleep(timeToWait)
+                if(self.__status == Status.working):
+                    logging.info("Cycle done! start waiting next cycle!")
+                    time.sleep(timeToWait)
+                else:
+                    logging.info("Bot completed the work and is currently gone with status: "+str(self.__status))

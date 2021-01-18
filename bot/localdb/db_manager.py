@@ -16,11 +16,16 @@ class DBmanager(metaclass=Singleton):
     def addUser(self,user):
         #return inserted id
         today = datetime.now()
-        return self.db.insert({'username': user["username"], 'id': str(user["pk"]),"date_following":today.strftime("%d/%m/%Y %H:%M:%S")})
+        return self.db.insert({'username': user["username"],"removed": False, 'id': str(user["pk"]),"date_following":today.strftime("%d/%m/%Y %H:%M:%S")})
 
-    def removeUser(self,username):
+    def removeUser(self,id):
         User = Query()
-        return self.db.remove(User.username == username)
+        return self.db.remove(User.id == id)
+
+    def updateRemovedFlag(self,userid,removedValue):
+        User = Query()
+        return self.db.update({"removed":removedValue},User.id == userid)
+
     def getAllUsers(self):
         return self.db.all()
 
