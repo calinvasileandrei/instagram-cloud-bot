@@ -33,13 +33,13 @@ def work():
             return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is already working!"})
 
 
-@app.route('/unfollow',methods=['GET'])
-def unfollow():
+@app.route('/unfollowall',methods=['GET'])
+def unfollowall():
     global bot
     if(bot is None):
         username = os.getenv("username")
         password = os.getenv("password")
-        bot = InstagramCloudBot(username,password,Operation.unfollow)
+        bot = InstagramCloudBot(username,password,Operation.unfollowall)
         bot.start()
         status = bot.status()
         return jsonify({"status": 200, "bot_status": str(status), "message": "Bot created and started with unfollow operation!"})
@@ -50,6 +50,25 @@ def unfollow():
             return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is working again!"})
         else:
             return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is already working!"})
+
+@app.route('/unfollow24h',methods=['GET'])
+def unfollow24h():
+    global bot
+    if(bot is None):
+        username = os.getenv("username")
+        password = os.getenv("password")
+        bot = InstagramCloudBot(username,password,Operation.unfollow24h)
+        bot.start()
+        status = bot.status()
+        return jsonify({"status": 200, "bot_status": str(status), "message": "Bot created and started with unfollow operation!"})
+    else:
+        status = bot.status()
+        if(status == Status.offline or status == Status.paused):
+            bot.__work()
+            return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is working again!"})
+        else:
+            return jsonify({"status": 200, "bot_status": str(status), "message": "Bot is already working!"})
+
 
 
 @app.route('/stop',methods=['GET'])

@@ -27,8 +27,10 @@ class InstagramCloudBot(Thread):
     def run(self):
         if(self.__operation == Operation.work):
             self.__work()
-        elif (self.__operation == Operation.unfollow):
-            self.__removeNotFollowingBack()
+        elif (self.__operation == Operation.unfollowall):
+            self.__removeNotFollowingBack(False)
+        elif (self.__operation == Operation.unfollow24h):
+            self.__removeNotFollowingBack(True) #remove only the one which i have followed at least 24h ago
 
     def getBotFollowedUsers(self):
         return self.__dbmanager.getAllUsers()
@@ -63,7 +65,10 @@ class InstagramCloudBot(Thread):
 
 
     def __findLastUserPost(self, user):
-        feed = self.__api.username_feed(user["username"])
+        try:
+            feed = self.__api.username_feed(user["username"])
+        except:
+            return None
         if (len(feed["items"]) > 0):
             lastPost = feed["items"][0]
             return lastPost
@@ -83,32 +88,70 @@ class InstagramCloudBot(Thread):
 
     def __userFollowsBack(self,userid):
         response = self.__api.friendships_show(userid)
-        followedBack = response["followed_by"]
+        followedBack = { "following_back": response["followed_by"] , "following":response["following"]}
         return followedBack
 
     def __removeFollow(self,userid):
         self.__api.friendships_destroy(userid)
 
+    def __findValidUserCaviaPost(self,following):
+        findCavia = True
+        user_cavia = None
+        lastpost = None
+        while findCavia:
+            user_cavia = self.__findRandomUser(following)
+            time.sleep(1)
+            logging.info("User cavia : " + str(user_cavia["username"]))
+
+            # get the last user post
+            lastpost = self.__findLastUserPost(user_cavia)
+            if (lastpost is not None):
+                logging.info("User Cavia not accepted for some reasons like private user!")
+                findCavia = False
+            time.sleep(2)
+
+        return user_cavia,lastpost
+
     #TODO: Need to be tested!
-    def __removeNotFollowingBack(self):
+    def __removeNotFollowingBack(self,lastdayfollowers):
         if(not self.__api == None):
             self.__updateStatus(Status.working)
-            users = self.__dbmanager.getAllUsers()
+
+            if(lastdayfollowers):
+                users = self.__dbmanager.getAllUsersAdded24h()
+            else:
+                users = self.__dbmanager.getAllUsers()
+
             logging.info("Removing users not following back!")
+            position = 0
             for user in users:
-                logging.info("Checking user: " + user["username"])
-                if (("removed" in user and user["removed"] == False) or ("removed" not in user)):
+                position+=1
+                logging.info("["+str(position)+"/"+str(len(users))+"] | Checking user: " + user["username"])
+                if ( not ("removed" in user and user["removed"] == True)):
                     # check if user follows you
-                    if (self.__userFollowsBack(user["id"]) == False):
+                    relationship = self.__userFollowsBack(user["id"])
+                    if ( relationship["following_back"] == False and relationship["following"] == True):
                         time.sleep(5)
                         self.__removeFollow(user["id"])
                         self.__dbmanager.updateRemovedFlag(user["id"],True)
                         logging.info("User: " + user["username"] + " removed")
+                        # wait random time
+                        randomTime = randint(20, 40)
+                        time.sleep(randomTime)
                     else:
-                        logging.info("User: " + user["username"] + " is following you back!")
-                # wait random time
-                randomTime = randint(20, 40)
-                time.sleep(randomTime)
+                        self.__dbmanager.updateRemovedFlag(user["id"],False)
+                        if(relationship["following_back"] == True and relationship["following"] == True):
+                            logging.info("User: "+user["username"]+" has a friendship relation!")
+                        elif(relationship["following_back"]==True and relationship["following"] == False ):
+                            logging.info("User: "+user["username"]+" is your follower!")
+                        else:
+                            logging.info("User: " + user["username"] + " has a no relation with you !")
+                        # wait random time
+                        randomTime = randint(3, 10)
+                        time.sleep(randomTime)
+                else:
+                    time.sleep(1)
+            logging.info("Process of unfllowing done!")
             self.__updateStatus(Status.paused)
 
     def __work(self):
@@ -126,19 +169,15 @@ class InstagramCloudBot(Thread):
             while self.__status == Status.working:
                 # create a random time in between i follow
                 timeToWait = randint(10, 30) * 60
-                logging.info("Cylce time sleep : " + str(timeToWait))
-                # based on my first following all of my neach i select one
-                user_cavia = self.__findRandomUser(following)
-                time.sleep(1)
-                logging.info("User cavia : " + str(user_cavia["username"]))
+                logging.info("Cylce time sleep : " + str(timeToWait/60)+"minutes")
 
-                # get the last user post
-                lastpost = self.__findLastUserPost(user_cavia)
-                time.sleep(1)
+                # based on my first following all of my neach i select one
+                user_cavia,lastpost = self.__findValidUserCaviaPost(following)
+
                 logging.info("Last post for user_cavia : " + str(lastpost["pk"]))
                 # get all the users who liked that post
                 users = self.__findMediaLikers(lastpost)
-                time.sleep(1)
+                time.sleep(2)
                 logging.info("Retrived users who liked!")
 
                 # calculate how many user i need to follow

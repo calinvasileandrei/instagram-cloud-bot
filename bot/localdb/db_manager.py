@@ -29,5 +29,19 @@ class DBmanager(metaclass=Singleton):
     def getAllUsers(self):
         return self.db.all()
 
+    #get all users added at least 24h ago
+    def getAllUsersAdded24h(self):
+        users = self.getAllUsers()
+        print(users)
+        now = datetime.now()
+        users_selected= []
+        for user in users:
+            added = datetime.strptime(user["date_following"],"%d/%m/%Y %H:%M:%S")
+            difference =  int((now - added).total_seconds()/3600)
+            if(difference >=24):
+                users_selected.append(user)
+
+        return users_selected
+
     def getFollowingNumber(self):
         return len(self.db.all())

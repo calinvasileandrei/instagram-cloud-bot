@@ -8,4 +8,5 @@ class Status(Enum):
 
 class Operation(Enum):
     work = "work"
-    unfollow = "unfollow"
+    unfollowall = "unfollowall"
+    unfollow24h = "unfollow24h"
