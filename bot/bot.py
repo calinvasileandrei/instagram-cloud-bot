@@ -9,28 +9,29 @@ from bot.localdb.db_manager import DBmanager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.FileHandler(
     "debug.log"), logging.StreamHandler()])
-from bot.status import Status,Operation
+from bot.status import Status, Operation
+
 
 class InstagramCloudBot(Thread):
-
-    __api=None
-    __status=Status.offline
-    __dbmanager=None
+    __api = None
+    __status = Status.offline
+    __dbmanager = None
     __operation = None
 
-    def __init__(self, _username, _password,_operation):
+    def __init__(self, _username, _password, _operation):
         super().__init__()
         self.__api = Client(_username, _password)
         self.__dbmanager = DBmanager()
         self.__operation = _operation
 
     def run(self):
-        if(self.__operation == Operation.work):
+        if (self.__operation == Operation.work):
             self.__work()
         elif (self.__operation == Operation.unfollowall):
-            self.__removeNotFollowingBack(False)
+            self.__removeNotFollowingBack(False, Status.paused)
         elif (self.__operation == Operation.unfollow24h):
-            self.__removeNotFollowingBack(True) #remove only the one which i have followed at least 24h ago
+            self.__removeNotFollowingBack(True,
+                                          Status.paused)  # remove only the one which i have followed at least 24h ago
 
     def getBotFollowedUsers(self):
         return self.__dbmanager.getAllUsers()
@@ -44,25 +45,22 @@ class InstagramCloudBot(Thread):
     def status(self):
         return self.__status
 
-    #private
+    # private
     def __createFollowingFile(self):
         results = self.__api.user_following(self.__api.authenticated_user_id, self.__api.generate_uuid())
         with open('following.json', 'w', encoding='utf-8') as f:
             json.dump(results["users"], f, ensure_ascii=False, indent=4)
             return results["users"]
 
-
     def __readFollowingFile(self):
         with open('following.json', encoding='utf-8') as fh:
             data = json.load(fh)
             return data
 
-
     def __findRandomUser(self, following):
         maxFollowing = len(following)
-        userChoosen = randint(0, maxFollowing)
+        userChoosen = randint(0, maxFollowing - 1)
         return following[userChoosen]
-
 
     def __findLastUserPost(self, user):
         try:
@@ -73,28 +71,26 @@ class InstagramCloudBot(Thread):
             lastPost = feed["items"][0]
             return lastPost
 
-
     def __findMediaLikers(self, post):
         mediaLikers = self.__api.media_likers(post["id"])
         return mediaLikers["users"]
-
 
     def __followUser(self, userId):
         result = self.__api.friendships_create(userId)
         return result["status"]
 
-    def __updateStatus(self,newStatus):
+    def __updateStatus(self, newStatus):
         self.__status = newStatus
 
-    def __userFollowsBack(self,userid):
+    def __userFollowsBack(self, userid):
         response = self.__api.friendships_show(userid)
-        followedBack = { "following_back": response["followed_by"] , "following":response["following"]}
+        followedBack = {"following_back": response["followed_by"], "following": response["following"]}
         return followedBack
 
-    def __removeFollow(self,userid):
+    def __removeFollow(self, userid):
         self.__api.friendships_destroy(userid)
 
-    def __findValidUserCaviaPost(self,following):
+    def __findValidUserCaviaPost(self, following):
         findCavia = True
         user_cavia = None
         lastpost = None
@@ -110,14 +106,29 @@ class InstagramCloudBot(Thread):
                 findCavia = False
             time.sleep(2)
 
-        return user_cavia,lastpost
+        return user_cavia, lastpost
 
-    #TODO: Need to be tested!
-    def __removeNotFollowingBack(self,lastdayfollowers):
-        if(not self.__api == None):
+    def __existsUserInDB(self, id):
+        return self.__dbmanager.existsUser(id)
+
+    def __generaterandomUser(self, users):
+        generate = True
+        randomUser = None
+        while generate:
+            randomIndex = randint(0, len(users) - 1)
+            randomUser = users[randomIndex]
+            # TODO: check if in db
+            if not self.__existsUserInDB(randomUser["pk"]):
+                generate = False
+
+        return randomUser
+
+    # TODO: Need to be tested!
+    def __removeNotFollowingBack(self, removeLastDayFollowers, statusAfter):
+        if (not self.__api == None):
             self.__updateStatus(Status.working)
 
-            if(lastdayfollowers):
+            if (removeLastDayFollowers):
                 users = self.__dbmanager.getAllUsersAdded24h()
             else:
                 users = self.__dbmanager.getAllUsers()
@@ -125,37 +136,41 @@ class InstagramCloudBot(Thread):
             logging.info("Removing users not following back!")
             position = 0
             for user in users:
-                position+=1
-                logging.info("["+str(position)+"/"+str(len(users))+"] | Checking user: " + user["username"])
-                if ( not ("removed" in user and user["removed"] == True)):
+                position += 1
+                logging.info("[" + str(position) + "/" + str(len(users)) + "] | Checking user: " + user["username"])
+                if (not ("removed" in user and user["removed"] == True)):
                     # check if user follows you
                     relationship = self.__userFollowsBack(user["id"])
-                    if ( relationship["following_back"] == False and relationship["following"] == True):
+                    if (relationship["following_back"] == False and relationship["following"] == True):
                         time.sleep(5)
                         self.__removeFollow(user["id"])
-                        self.__dbmanager.updateRemovedFlag(user["id"],True)
+                        self.__dbmanager.updateRemovedFlag(user["id"], True)
                         logging.info("User: " + user["username"] + " removed")
                         # wait random time
                         randomTime = randint(20, 40)
                         time.sleep(randomTime)
                     else:
-                        self.__dbmanager.updateRemovedFlag(user["id"],False)
-                        if(relationship["following_back"] == True and relationship["following"] == True):
-                            logging.info("User: "+user["username"]+" has a friendship relation!")
-                        elif(relationship["following_back"]==True and relationship["following"] == False ):
-                            logging.info("User: "+user["username"]+" is your follower!")
+                        if (relationship["following_back"] == True and relationship["following"] == True):
+                            logging.info("User: " + user["username"] + " has a friendship relation!")
+                            self.__dbmanager.updateRemovedFlag(user["id"], False)
+                        elif (relationship["following_back"] == True and relationship["following"] == False):
+                            logging.info("User: " + user["username"] + " is your follower!")
+                            self.__dbmanager.updateRemovedFlag(user["id"], False)
                         else:
-                            logging.info("User: " + user["username"] + " has a no relation with you !")
+                            logging.info("User: " + user["username"] + " has no relation with you !")
+                            self.__dbmanager.updateRemovedFlag(user["id"], True)
+                            logging.info("User: " + user["username"] + " removed")
+
                         # wait random time
                         randomTime = randint(3, 10)
                         time.sleep(randomTime)
                 else:
                     time.sleep(1)
             logging.info("Process of unfllowing done!")
-            self.__updateStatus(Status.paused)
+            self.__updateStatus(statusAfter)
 
     def __work(self):
-        if(not self.__api == None):
+        if (not self.__api == None):
             self.__updateStatus(Status.working)
             following = []
             # init
@@ -169,10 +184,10 @@ class InstagramCloudBot(Thread):
             while self.__status == Status.working:
                 # create a random time in between i follow
                 timeToWait = randint(10, 30) * 60
-                logging.info("Cylce time sleep : " + str(timeToWait/60)+"minutes")
+                logging.info("Cylce time sleep : " + str(timeToWait / 60) + "minutes")
 
                 # based on my first following all of my neach i select one
-                user_cavia,lastpost = self.__findValidUserCaviaPost(following)
+                user_cavia, lastpost = self.__findValidUserCaviaPost(following)
 
                 logging.info("Last post for user_cavia : " + str(lastpost["pk"]))
                 # get all the users who liked that post
@@ -183,28 +198,32 @@ class InstagramCloudBot(Thread):
                 # calculate how many user i need to follow
                 usersToFollow = randint(3, 10);
 
-                #check that the post has at lest 3-10 likes
-                if(usersToFollow>=len(users)):
-                    #else i will follow all the users in the list
+                # check that the post has at lest 3-10 likes
+                if (usersToFollow >= len(users)):
+                    # else i will follow all the users in the list
                     usersToFollow = len(users)
                 logging.info("Users to follow: " + str(usersToFollow))
 
                 for i in range(usersToFollow):
                     # get random user from the list
-                    randomIndex = randint(0, len(users)-1)
-                    status = self.__followUser(users[randomIndex]["pk"])
+                    randomUser = self.__generaterandomUser(users)
+                    status = self.__followUser(randomUser["pk"])
+                    # saving on db
+                    self.__dbmanager.addUser(randomUser)
 
-                    #saving on db
-                    self.__dbmanager.addUser(users[randomIndex])
-
-                    #loggind and next follow random time
+                    # loggind and next follow random time
                     waitForNextFollow = randint(5, 20)
-                    logging.info("followed user: " + str(users[randomIndex]["username"]) + " following status: " + str(
+                    logging.info("followed user: " + str(randomUser["username"]) + " following status: " + str(
                         status) + ", wait for next follower : " + str(waitForNextFollow) + " sec")
                     time.sleep(waitForNextFollow)
 
-                if(self.__status == Status.working):
+                if (self.__status == Status.working):
+                    logging.info("Cycle of follows done!")
+                    logging.info("Cycle of unnfollow last day followers started...")
+                    time.sleep(60)
+                    self.__removeNotFollowingBack(True, Status.working)
                     logging.info("Cycle done! start waiting next cycle!")
                     time.sleep(timeToWait)
+
                 else:
-                    logging.info("Bot completed the work and is currently gone with status: "+str(self.__status))
+                    logging.info("Bot completed the work and is currently gone with status: " + str(self.__status))

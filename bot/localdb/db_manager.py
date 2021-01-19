@@ -20,11 +20,20 @@ class DBmanager(metaclass=Singleton):
 
     def removeUser(self,id):
         User = Query()
-        return self.db.remove(User.id == id)
+        return self.db.remove(User.id == str(id))
 
-    def updateRemovedFlag(self,userid,removedValue):
+    def existsUser(self,id):
         User = Query()
-        return self.db.update({"removed":removedValue},User.id == userid)
+        user=None
+        user = self.db.search(User.id ==str(id))
+        if(user):
+            return True
+        else:
+            return False
+
+    def updateRemovedFlag(self,id,removedValue):
+        User = Query()
+        return self.db.update({"removed":removedValue},User.id == str(id))
 
     def getAllUsers(self):
         return self.db.all()
