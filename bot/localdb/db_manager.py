@@ -40,7 +40,8 @@ class DBmanager(metaclass=Singleton):
 
     #get all users added at least 24h ago
     def getAllUsersAdded24h(self):
-        users = self.getAllUsers()
+        User = Query()
+        users = self.db.search(User.removed == False)
         print(users)
         now = datetime.now()
         users_selected= []

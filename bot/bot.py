@@ -17,6 +17,11 @@ class InstagramCloudBot(Thread):
     __status = Status.offline
     __dbmanager = None
     __operation = None
+    #TODO:Implement This whit api post, default are:
+    __time_wait_start = 30 #minutes
+    __time_wait_finish = 45 ##minutes
+    __min_users_to_follow = 3
+    __max_users_to_follow = 10
 
     def __init__(self, _username, _password, _operation):
         super().__init__()
@@ -183,7 +188,7 @@ class InstagramCloudBot(Thread):
 
             while self.__status == Status.working:
                 # create a random time in between i follow
-                timeToWait = randint(10, 30) * 60
+                timeToWait = randint(self.__time_wait_start, self.__time_wait_finish) * 60
                 logging.info("Cylce time sleep : " + str(timeToWait / 60) + "minutes")
 
                 # based on my first following all of my neach i select one
@@ -196,7 +201,7 @@ class InstagramCloudBot(Thread):
                 logging.info("Retrived users who liked!")
 
                 # calculate how many user i need to follow
-                usersToFollow = randint(3, 10);
+                usersToFollow = randint(self.__min_users_to_follow, self.__max_users_to_follow);
 
                 # check that the post has at lest 3-10 likes
                 if (usersToFollow >= len(users)):

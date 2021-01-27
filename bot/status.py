@@ -10,3 +10,10 @@ class Operation(Enum):
     work = "work"
     unfollowall = "unfollowall"
     unfollow24h = "unfollow24h"
+
+class HeuristisStatus(Enum):
+    waitToFollowNextUser= "waitToFollowNextUser"
+    waitNextCycle = "waitNextCycle"
+    waitUserDelete = "waitUserDelete"
+    waitSimpleOperation = "waitSimpleOperation"
+    waitComplexOperation = "waitSimpleOperation"

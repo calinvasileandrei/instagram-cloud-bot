@@ -8,7 +8,7 @@ def __users24hago():
 
 #__users24hago()
 
-print( dbmanager.existsUser("498298"))
+#print( dbmanager.existsUser("498298"))
 
 #dbmanager.addUser({"username":"andrew","pk":1})
 #print(dbmanager.removeUser("andrew"))
