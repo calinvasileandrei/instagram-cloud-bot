@@ -1,8 +1,10 @@
 bot/debug.log
 bot/following.json
 testing/db.json
+testing/settings.json
 venv
 .env
 db.json
 debug.log
 following.json
+settings.json

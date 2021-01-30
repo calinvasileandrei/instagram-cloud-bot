@@ -6,6 +6,8 @@ import time
 import logging
 from threading import Thread
 from bot.localdb.db_manager import DBmanager
+from bot.localdb.settings_manager import SettingManager
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.FileHandler(
     "debug.log"), logging.StreamHandler()])
@@ -16,12 +18,16 @@ class InstagramCloudBot(Thread):
     __api = None
     __status = Status.offline
     __dbmanager = None
+    __settings_manager = None
     __operation = None
     #TODO:Implement This whit api post, default are:
     __time_wait_start = 30 #minutes
     __time_wait_finish = 45 ##minutes
     __min_users_to_follow = 3
     __max_users_to_follow = 10
+    __min_users_to_unfollow = 7
+    __max_users_to_unfollow = 20
+
 
     def __init__(self, _username, _password, _operation):
         super().__init__()
@@ -29,8 +35,10 @@ class InstagramCloudBot(Thread):
         self.__dbmanager = DBmanager()
         self.__operation = _operation
 
+
     def run(self):
         if (self.__operation == Operation.work):
+            self.__loadSettings()
             self.__work()
         elif (self.__operation == Operation.unfollowall):
             self.__removeNotFollowingBack(False, Status.paused)
@@ -51,6 +59,16 @@ class InstagramCloudBot(Thread):
         return self.__status
 
     # private
+    def __loadSettings(self):
+        self.__settings_manager = SettingManager()
+        settings = self.__settings_manager.getSettings()
+        self.__time_wait_start = self.__settings_manager.getValueOfSettings(settings, "time_wait_start")
+        self.__time_wait_finish = self.__settings_manager.getValueOfSettings(settings, "time_wait_finish")
+        self.__min_users_to_follow = self.__settings_manager.getValueOfSettings(settings, "min_users_to_follow")
+        self.__max_users_to_follow = self.__settings_manager.getValueOfSettings(settings, "max_users_to_follow")
+        self.__min_users_to_unfollow = self.__settings_manager.getValueOfSettings(settings, "min_users_to_unfollow")
+        self.__max_users_to_unfollow = self.__settings_manager.getValueOfSettings(settings, "max_users_to_unfollow")
+
     def __createFollowingFile(self):
         results = self.__api.user_following(self.__api.authenticated_user_id, self.__api.generate_uuid())
         with open('following.json', 'w', encoding='utf-8') as f:
@@ -140,7 +158,12 @@ class InstagramCloudBot(Thread):
 
             logging.info("Removing users not following back!")
             position = 0
+            usersToUnFollow = randint(self.__min_users_to_unfollow, self.__max_users_to_unfollow);
+            logging.info("Number of users to unfollow: ",usersToUnFollow)
+            counter_removed = 0
             for user in users:
+                if(counter_removed >= usersToUnFollow):
+                    break
                 position += 1
                 logging.info("[" + str(position) + "/" + str(len(users)) + "] | Checking user: " + user["username"])
                 if (not ("removed" in user and user["removed"] == True)):
@@ -151,6 +174,7 @@ class InstagramCloudBot(Thread):
                         self.__removeFollow(user["id"])
                         self.__dbmanager.updateRemovedFlag(user["id"], True)
                         logging.info("User: " + user["username"] + " removed")
+                        counter_removed+=1
                         # wait random time
                         randomTime = randint(20, 40)
                         time.sleep(randomTime)
@@ -188,6 +212,7 @@ class InstagramCloudBot(Thread):
 
             while self.__status == Status.working:
                 # create a random time in between i follow
+
                 timeToWait = randint(self.__time_wait_start, self.__time_wait_finish) * 60
                 logging.info("Cylce time sleep : " + str(timeToWait / 60) + "minutes")
 
