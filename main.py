@@ -26,9 +26,14 @@ def work():
     if (bot is None):
         username = os.getenv("username")
         password = os.getenv("password")
-        bot = InstagramCloudBot(username, password, Operation.work)
-        bot.start()
-        status = bot.status()
+        status=""
+        try:
+            bot = InstagramCloudBot(username, password, Operation.work)
+            bot.start()
+            status = bot.status()
+        except Exception as e:
+            status= e
+
         return jsonify({"status": 200, "bot_status": str(status), "message": "Bot created and started!"})
     else:
         status = bot.status()
