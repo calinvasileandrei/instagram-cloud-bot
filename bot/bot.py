@@ -158,14 +158,14 @@ class InstagramCloudBot(Thread):
 
             logging.info("Removing users not following back!")
             position = 0
-            usersToUnFollow = randint(self.__min_users_to_unfollow, self.__max_users_to_unfollow);
-            logging.info("Number of users to unfollow: ",usersToUnFollow)
+            usersToUnFollow = randint(self.__min_users_to_unfollow, self.__max_users_to_unfollow)
+            logging.info("Number of users to unfollow: " + str(usersToUnFollow))
             counter_removed = 0
             for user in users:
                 if(counter_removed >= usersToUnFollow):
                     break
                 position += 1
-                logging.info("[" + str(position) + "/" + str(len(users)) + "] | Checking user: " + user["username"])
+                logging.info("[" + str(counter_removed) + "/" + str(len(usersToUnFollow)) + "] Removed | Checking user ["+str(position)+"/"+str(len(users))+"]: " + user["username"])
                 if (not ("removed" in user and user["removed"] == True)):
                     # check if user follows you
                     relationship = self.__userFollowsBack(user["id"])
